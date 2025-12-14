@@ -16,11 +16,63 @@ The implementation follows the best practices laid out by Anthropic for building
 
 ## Features
 
-The server provides three essential memory management tools:
+The server provides memory tools designed for both traditional “store/search” and for low-friction **vibe coding**.
 
-1. **`save_memory`**: Store any information in long-term memory with semantic indexing
+### Core tools
+
+1. **`save_memory`**: Store information in long-term memory with semantic indexing (optionally with `file_path` / `tags`)
 2. **`get_all_memories`**: Retrieve all stored memories for comprehensive context
 3. **`search_memories`**: Find relevant memories using semantic search
+4. **`delete_memory`**: Remove an outdated or incorrect memory by ID
+
+### Vibe coding tools (recommended)
+
+These tools make memory more reliable by keeping it structured, scoped, and clean:
+
+1. **`save_vibe_memory`**: Save a structured memory as one of `CONVENTION`, `DECISION`, or `GOTCHA` (with deduplication)
+2. **`get_session_briefing`**: “Start-of-session” compact briefing (top relevant conventions/decisions/gotchas)
+3. **`seed_project_from_files`**: One-shot onboarding by reading repo files (defaults: `pyproject.toml,README.md`) and saving starter memories
+4. **`correct_memory`**: Mark a wrong/stale memory as refuted and save a replacement (prevents repeated agent mistakes)
+5. **`get_vibe_status`**: Markdown dashboard of current `CONVENTION`/`DECISION`/`GOTCHA` plus “needs review” / “expired”
+
+## Vibe Coding: How to use this server
+
+### 1) Scope your memories (avoid cross-project contamination)
+
+Memories are scoped by `project_name` (internally used as Mem0 `user_id`).
+
+- Use a unique `project_name` per repo/workspace (example: `mycompany-website`, `mcp-mem0-server`, etc.)
+- If you reuse the same `project_name` across different repos, memories will mix
+
+### 2) Use only 3 memory types
+
+To keep memory clean and searchable, vibe memories are stored in a mini-schema:
+
+```
+TYPE: CONVENTION | DECISION | GOTCHA
+SCOPE: repo/module/feature
+TRIGGER: when to recall this
+CONTENT: the actual rule/decision/gotcha
+LAST_VALIDATED: YYYY-MM-DD
+REVIEW_AFTER: YYYY-MM-DD (optional)
+EXPIRES: YYYY-MM-DD (optional)
+```
+
+### 3) Recommended workflow
+
+1. **First time in a repo**: run `seed_project_from_files` using that repo’s `project_name`
+2. **At the start of every session**: call `get_session_briefing`
+3. **After agreeing on an approach**: call `save_vibe_memory` as a `DECISION`
+4. **After a fix lands**: call `save_vibe_memory` as a `GOTCHA` (root cause + fix)
+5. **If the agent gets something wrong**: call `correct_memory` once, and move on
+
+### 4) Safety: “no secrets” policy
+
+Do **not** store secrets in memory (API keys, tokens, passwords, private keys, full connection strings). Store procedures instead.
+
+Example:
+- ✅ “Credentials live in `.env` under `LLM_API_KEY`”
+- ❌ “My OpenRouter key is …”
 
 ## Prerequisites
 
