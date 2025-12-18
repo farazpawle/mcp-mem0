@@ -1,5 +1,20 @@
-from mem0 import Memory
 import os
+import sys
+import logging
+
+# CRITICAL: Configure logging BEFORE importing mem0 to prevent stdout pollution
+# MCP uses stdout for JSON-RPC, so any log output there corrupts the protocol
+logging.basicConfig(
+    stream=sys.stderr,
+    level=getattr(logging, os.getenv("LOG_LEVEL", "WARNING").upper(), logging.WARNING),
+    format='%(name)s - %(levelname)s - %(message)s'
+)
+# Suppress noisy loggers that would otherwise corrupt the MCP protocol
+logging.getLogger('mem0').setLevel(logging.WARNING)
+logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger('httpcore').setLevel(logging.WARNING)
+
+from mem0 import Memory
 
 # Custom instructions for memory processing
 # Optimized for "Vibe Coding" - keeping memory clean, structured, and actionable.

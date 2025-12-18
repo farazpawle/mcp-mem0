@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "mcpServers": {
+    "archon": {
+      "serverUrl": "http://localhost:8051/sse",
+      "disabled": true
+    },
+    "mem0-memory": {
+      "command": "python",
+      "args": [
+        "D:\\D Drive\\Projects\\MCP Servers\\ColeMedin_mcp-mem0\\src\\main.py"
+      ],
+      "type": "stdio"
+    }
+  }
+}

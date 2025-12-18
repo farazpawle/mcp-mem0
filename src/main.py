@@ -1,3 +1,29 @@
+import os
+import sys
+import logging
+
+# CRITICAL: Hijack stdout IMMEDIATELY to prevent any library from polluting it.
+# MCP protocol requires stdout to be pure JSON-RPC.
+_real_stdout = sys.stdout
+sys.stdout = sys.stderr
+
+# Configure logging to go to stderr
+logging.basicConfig(
+    stream=sys.stderr,
+    level=getattr(logging, os.getenv("LOG_LEVEL", "WARNING").upper(), logging.WARNING),
+    format='%(name)s - %(levelname)s - %(message)s'
+)
+
+# Suppress all known noisy loggers
+for logger_name in [
+    'mem0', 'mem0.vector_stores', 'mem0.vector_stores.supabase',
+    'httpx', 'httpcore', 'openai', 'anthropic', 'google.generativeai'
+]:
+    logging.getLogger(logger_name).setLevel(logging.WARNING)
+
+logger = logging.getLogger(__name__)
+
+# Now import other modules after logging is configured
 from mcp.server.fastmcp import FastMCP, Context
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
@@ -6,8 +32,6 @@ from dotenv import load_dotenv
 from mem0 import Memory
 import asyncio
 import json
-import os
-import logging
 import datetime as _dt
 import pathlib
 import tomllib
@@ -24,9 +48,6 @@ from vibe_memory import (
 from utils import get_mem0_client
 
 load_dotenv()
-
-logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
-logger = logging.getLogger(__name__)
 
 # Default user ID for memory operations
 DEFAULT_USER_ID = "user"
@@ -57,13 +78,19 @@ async def mem0_lifespan(server: FastMCP) -> AsyncIterator[Mem0Context]:
         # No explicit cleanup needed for the Mem0 client
         pass
 
-# Initialize FastMCP server with the Mem0 client as context
+# Initialize FastMCP server
+# We must pass the original stdout to the server so it can communicate.
 mcp = FastMCP(
     "mcp-mem0",
     lifespan=mem0_lifespan,
     host=os.getenv("HOST", "0.0.0.0"),
     port=os.getenv("PORT", "8050")
-)        
+)
+
+# Note: FastMCP handles its own stdio transport, but we've redirected sys.stdout
+# globally. We need to ensure the underlying transport uses the real stdout.
+# Since we are using FastMCP, it typically handles this, but it's safer to 
+# ensure the global sys.stdout is restored just before the server starts.
 
 
 def _extract_results(maybe_dict_or_list):
@@ -990,4 +1017,19 @@ async def main():
         await mcp.run_stdio_async()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # The server needs a clean environment. We already redirected sys.stdout to sys.stderr at the top.
+    # Now we run the server, and we'll ensure the transport uses the original real stdout.
+    
+    transport_name = os.getenv("TRANSPORT", "stdio").lower()
+    if transport_name == "stdio":
+        # For stdio, we explicitly use the original stdout buffer for the server
+        # and keep the global sys.stdout redirected to stderr to catch any pollution.
+        # However, FastMCP doesn't give us easy access to the transport initialization.
+        # So we temporarily restore sys.stdout for the duration of the server run.
+        try:
+            sys.stdout = _real_stdout
+            asyncio.run(main())
+        finally:
+            sys.stdout = sys.stderr
+    else:
+        asyncio.run(main())
